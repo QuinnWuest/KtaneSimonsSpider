@@ -14,6 +14,7 @@ public class SimonsSpiderScript : MonoBehaviour
     public KMBombInfo BombInfo;
     public KMAudio Audio;
     public KMRuleSeedable RuleSeedable;
+    public SpiderLegManager Spider;
 
     public KMSelectable[] Sels;
 
@@ -192,13 +193,15 @@ public class SimonsSpiderScript : MonoBehaviour
                 duration = 1f;
                 var oldP = _posOnMod[old];
                 var newP = _posOnMod[gPos];
+                Spider.RunAnimation(0);
                 while (elapsed < duration)
                 {
-                    SpiderObj.transform.localPosition = new Vector3(Mathf.Lerp(oldP.x, newP.x, elapsed / duration), 0, Mathf.Lerp(oldP.z, newP.z, elapsed / duration));
+                    SpiderObj.transform.localPosition = new Vector3(Mathf.Lerp(oldP.x, newP.x, elapsed / duration), SpiderObj.transform.localPosition.y, Mathf.Lerp(oldP.z, newP.z, elapsed / duration));
                     yield return null;
                     elapsed += Time.deltaTime;
                 }
-                SpiderObj.transform.localPosition = new Vector3(newP.x, 0, newP.z);
+                SpiderObj.transform.localPosition = new Vector3(newP.x, SpiderObj.transform.localPosition.y, newP.z);
+                Spider.StopAnimation();
                 yield return new WaitForSeconds(0.5f);
             }
 
