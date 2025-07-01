@@ -130,6 +130,7 @@ public class SimonsSpiderScript : MonoBehaviour
             Debug.LogFormat("[Simon's Spider #{0}] Stage #{1}: Shape of the loop: {2}", _moduleId, st + 1, _loops[st].WebPos.Select(i => _3by3PosNames[i]).Join(", "));
         }
 
+        Debug.LogFormat("Simon's Spider #{0}] View the filtered log to see every flash.", _moduleId);
         _flashSequence = StartCoroutine(FlashSequence());
 
         StartCoroutine(HandlePressQueue());
@@ -187,6 +188,7 @@ public class SimonsSpiderScript : MonoBehaviour
             if (!adjs.Contains(curIx) && _inputtedLoop.Count != 1)
             {
                 Debug.LogFormat("[Simon's Spider #{0}] Input reset via travelling to a non-adjacent position.", _moduleId);
+                ResetSilk();
                 _checkingLoop = false;
                 _flashSequence = StartCoroutine(FlashSequence());
                 _userInputQueue.Clear();
@@ -337,7 +339,7 @@ public class SimonsSpiderScript : MonoBehaviour
             int newPos = Rnd.Range(0, 9);
             int gCol = _colorGrid[coord][newPos];
             
-            // Debug.LogFormat("<Simon's Spider #{0}> {1} in the grid. {2} pos, {3} color.", _moduleId, GetCoord(coord), _3by3PosNames[newPos], _colorNames[gCol]);
+            Debug.LogFormat("<Simon's Spider #{0}> {1} in the grid. {2} pos, {3} color.", _moduleId, GetCoord(coord), _3by3PosNames[newPos], _colorNames[gCol]);
 
             if (oldPos != newPos)
             {

@@ -1,0 +1,10 @@
+{
+  "name": "SimonsSpiderModule-Editor",
+  "references": [
+    "SimonsSpiderModule"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": []
+}
