@@ -184,7 +184,6 @@ public class SpiderLeg : MonoBehaviour
 
     private IEnumerator PlayAnimation(int animIx)
     {
-        var posInAnim = 0;
         while (true)
         {
             SetLegPosition(AllAnims[animIx].Frames[0]);

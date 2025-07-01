@@ -7,6 +7,7 @@ using UnityEngine;
 using Rnd = UnityEngine.Random;
 using KModkit;
 using System.Text;
+using UnityEngine.SocialPlatforms;
 
 public class SimonsSpiderScript : MonoBehaviour
 {
@@ -21,6 +22,7 @@ public class SimonsSpiderScript : MonoBehaviour
     public Light SpiderLight;
     public GameObject SpiderObj;
     public GameObject[] SpiderParts;
+    public GameObject[] SilkObjs;
 
     private int _moduleId;
     private static int _moduleIdCounter = 1;
@@ -39,18 +41,6 @@ public class SimonsSpiderScript : MonoBehaviour
         /* w */ new Color32(230, 230, 230, 255),
         /* . */ new Color32(096, 083, 077, 255)
     };
-    private static readonly string[] _colorNames = new string[] { "Red", "Orange", "Yellow", "Green", "Cyan", "Blue", "Purple", "Magenta", "White" };
-
-    private readonly int[][] _colorGrid = new int[81][];
-    private readonly Loop[] _loops = new Loop[3];
-    private bool _playSounds;
-    private int _currentStage;
-    private int _spiderPos = 4;
-    private int _ixWithinLoop;
-    private bool _inSequence;
-    private float _currentAngle;
-
-    private static readonly string[] _3by3PosNames = new string[] { "TL", "TM", "TR", "ML", "MM", "MR", "BL", "BM", "BR" };
     private static readonly Vector3[] _posOnMod = new Vector3[]
     {
         new Vector3(-0.05f, 0, 0.05f),
@@ -62,20 +52,35 @@ public class SimonsSpiderScript : MonoBehaviour
         new Vector3(-0.05f, 0, -0.05f),
         new Vector3(0, 0, -0.05f),
         new Vector3(0.05f, 0, -0.05f),
+        new Vector3(0.0725f, 0, 0.0725f)
     };
-
-    private static readonly float?[][] _angleTable = new float?[9][]
+    private static readonly int[][] _silkIxs = new int[][]
     {
-        new float?[] { null, 0090, 0090, 0180, 0135, 0116, 0180, 0154, 0135 },
-        new float?[] { 0270, null, 0090, 0225, 0180, 0135, 0154, 0180, 0154 },
-        new float?[] { 0270, 0270, null, 0244, 0225, 0180, 0225, 0206, 0180 },
-        new float?[] { 0000, 0045, 0064, null, 0090, 0090, 0180, 0135, 0116 },
-        new float?[] { 0315, 0000, 0045, 0270, null, 0090, 0225, 0180, 0135 },
-        new float?[] { 0296, 0315, 0000, 0270, 0270, null, 0244, 0225, 0180 },
-        new float?[] { 0000, 0026, 0045, 0000, 0045, 0064, null, 0090, 0090 },
-        new float?[] { 0334, 0000, 0026, 0315, 0000, 0045, 0270, null, 0090 },
-        new float?[] { 0315, 0334, 0000, 0296, 0315, 0000, 0270, 0270, null }
+        new int[] {-1, 0, -1, 2, 3, -1, -1, -1, -1 },
+        new int[] {0, -1, 1, 4, 5, 6, -1, -1, -1 },
+        new int[] {-1, 1, -1, -1, 7, 8, -1, -1, -1 },
+        new int[] {2, 4, -1, -1, 9, -1, 11, 12, -1 },
+        new int[] {3, 5, 7, 9, -1, 10, 13, 14, 15 },
+        new int[] {-1, 6, 8, -1, 10, -1, -1, 16, 17 },
+        new int[] {-1, -1, -1, 11, 12, -1, -1, 18, -1 },
+        new int[] {-1, -1, -1, 13, 14, 15, 18, -1, 19 },
+        new int[] {-1, -1, -1, -1, 16, 17, -1, 19, -1 }
     };
+    private static readonly string[] _colorNames = new string[] { "Red", "Orange", "Yellow", "Green", "Cyan", "Blue", "Purple", "Magenta", "White" };
+    private static readonly string[] _3by3PosNames = new string[] { "TL", "TM", "TR", "ML", "MM", "MR", "BL", "BM", "BR" };
+
+    private readonly int[][] _colorGrid = new int[81][];
+    private readonly Loop[] _loops = new Loop[3];
+    private bool _playSounds;
+    private int _currentStage;
+    private int _spiderPos = 4;
+    private int _ixWithinLoop;
+    private float _currentAngle;
+    private Coroutine _flashSequence;
+    private bool _spiderInAnimation;
+    private List<int> _userInputQueue = new List<int>();
+    private bool _checkingLoop;
+    private List<int> _inputtedLoop = new List<int>();
 
     public class Loop
     {
@@ -121,30 +126,18 @@ public class SimonsSpiderScript : MonoBehaviour
         for (int st = 0; st < 3; st++)
         {
             _loops[st] = GenerateLoop(st + 4);
-            Debug.Log(_loops[st].WebPos.Join(" "));
-            Debug.LogFormat("[Simon's Spider #{0}] Positions in the grid: {1}", _moduleId, _loops[st].GridPos.Select(i => GetCoord(i)).Join(", "));
-            Debug.LogFormat("[Simon's Spider #{0}] Shape of the loop: {1}", _moduleId, _loops[st].WebPos.Select(i => _3by3PosNames[i]).Join(", "));
+            Debug.LogFormat("[Simon's Spider #{0}] Stage #{1}: Positions in the grid: {2}", _moduleId, st + 1, _loops[st].GridPos.Select(i => GetCoord(i)).Join(", "));
+            Debug.LogFormat("[Simon's Spider #{0}] Stage #{1}: Shape of the loop: {2}", _moduleId, st + 1, _loops[st].WebPos.Select(i => _3by3PosNames[i]).Join(", "));
         }
 
-        StartCoroutine(DoSequence());
+        _flashSequence = StartCoroutine(FlashSequence());
+
+        StartCoroutine(HandlePressQueue());
     }
 
     private string GetCoord(int num)
     {
         return "ABCDEFGHIJ"[num % 9].ToString() + "1234567890"[num / 9].ToString();
-    }
-
-    private IEnumerator FlashSpiderColor(int c)
-    {
-        foreach (var p in SpiderParts)
-            p.GetComponent<MeshRenderer>().material.color = _colors[c];
-        if (_playSounds)
-            Audio.PlaySoundAtTransform("sp" + Rnd.Range(0, 4), SpiderObj.transform);
-        SpiderLight.enabled = true;
-        SpiderLight.color = _colors[c];
-        yield return new WaitForSeconds(1f);
-        SpiderLight.enabled = false;
-        SpiderLight.color = _colors[9];
     }
 
     private KMSelectable.OnInteractHandler SelPress(int i)
@@ -153,72 +146,242 @@ public class SimonsSpiderScript : MonoBehaviour
         {
             if (_moduleSolved)
                 return false;
+            _playSounds = true;
+            if (!_checkingLoop)
+                _userInputQueue.Add(i);
             return false;
         };
     }
 
-    private IEnumerator DoSequence()
+    private IEnumerator HandlePressQueue()
     {
-        var loop = _loops[_currentStage];
-
         while (true)
         {
-            var old = _spiderPos;
-            _ixWithinLoop = (_ixWithinLoop + 1) % loop.GridPos.Length;
-            int coord = loop.GridPos[_ixWithinLoop];
-            int gPos = Rnd.Range(0, 9);
-            int gCol = _colorGrid[coord][gPos];
-            Debug.LogFormat("<Simon's Spider #{0}> {1} in the grid. {2} pos, {3} color.", _moduleId, GetCoord(coord), _3by3PosNames[gPos], _colorNames[gCol]);
-            float? angle = _angleTable[old][gPos];
-            if (angle != null)
+            yield return null;
+            if (_checkingLoop)
+                continue;
+            while (_spiderInAnimation)
+                yield return null;
+
+            if (_userInputQueue.Count == 0)
+                continue;
+
+            if (_flashSequence != null)
+                StopCoroutine(_flashSequence);
+
+            if (_inputtedLoop.Count != _userInputQueue.Count)
+                _inputtedLoop.Add(_userInputQueue[_inputtedLoop.Count]);
+            else
+                continue;
+
+            int curIx = _inputtedLoop.Last();
+
+            Debug.LogFormat("[Simon's Spider #{0}] Spider moved to {1} position.", _moduleId, _3by3PosNames[curIx]);
+
+            yield return RotateSpider(_spiderPos, curIx);
+            yield return WalkSpider(_spiderPos, curIx);
+
+            var adjs = GetAdjacents(_spiderPos);
+            var oldPos = _spiderPos;
+            _spiderPos = curIx;
+            if (!adjs.Contains(curIx) && _inputtedLoop.Count != 1)
             {
-                var elapsed = 0f;
-                var duration = 0.5f;
-                float rs = _currentAngle;
-                float re = angle.Value;
-                if (rs - re > 180)
-                    re += 360;
-                if (re - rs > 180)
-                    rs += 360;
-                while (elapsed < duration)
-                {
-                    SpiderObj.transform.localEulerAngles = new Vector3(0, Easing.InOutQuad(elapsed, rs, re, duration), 0);
-                    yield return null;
-                    elapsed += Time.deltaTime;
-                }
-                SpiderObj.transform.localEulerAngles = new Vector3(0, (re + 360) % 360, 0);
-                _currentAngle = re;
-                yield return new WaitForSeconds(0.3f);
-                elapsed = 0f;
-                duration = 1f;
-                var oldP = _posOnMod[old];
-                var newP = _posOnMod[gPos];
-                Spider.RunAnimation(0);
-                while (elapsed < duration)
-                {
-                    SpiderObj.transform.localPosition = new Vector3(Mathf.Lerp(oldP.x, newP.x, elapsed / duration), SpiderObj.transform.localPosition.y, Mathf.Lerp(oldP.z, newP.z, elapsed / duration));
-                    yield return null;
-                    elapsed += Time.deltaTime;
-                }
-                SpiderObj.transform.localPosition = new Vector3(newP.x, SpiderObj.transform.localPosition.y, newP.z);
-                Spider.StopAnimation();
-                yield return new WaitForSeconds(0.5f);
+                Debug.LogFormat("[Simon's Spider #{0}] Input reset via travelling to a non-adjacent position.", _moduleId);
+                _checkingLoop = false;
+                _flashSequence = StartCoroutine(FlashSequence());
+                _userInputQueue.Clear();
+                _inputtedLoop.Clear();
+                continue;
             }
 
-            _spiderPos = gPos;
-            foreach (var p in SpiderParts)
-                p.GetComponent<MeshRenderer>().material.color = _colors[gCol];
-            if (true)
-                Audio.PlaySoundAtTransform("sp" + Rnd.Range(0, 4), SpiderObj.transform);
-            SpiderLight.enabled = true;
-            SpiderLight.color = _colors[gCol];
-            yield return new WaitForSeconds(0.6f);
-            foreach (var p in SpiderParts)
-                p.GetComponent<MeshRenderer>().material.color = _colors[9];
-            SpiderLight.enabled = false;
-            SpiderLight.color = _colors[9];
-            yield return new WaitForSeconds(0.2f);
+            if (_inputtedLoop.Count > 1)
+                SetSilk(oldPos, _spiderPos);
+
+            if (_inputtedLoop.Distinct().Count() != _inputtedLoop.Count)
+            {
+                if (_inputtedLoop.First() == _inputtedLoop.Last())
+                {
+                    _checkingLoop = true;
+                    var submission = _inputtedLoop.Take(_inputtedLoop.Count - 1).ToArray();
+                    Debug.LogFormat("[Simon's Spider #{0}] Submitted loop: {1}", _moduleId, submission.Select(i => _3by3PosNames[i]).Join(", "));
+                    var loop = new Loop(submission, null);
+                    StartCoroutine(CheckLoop(loop));
+                }
+                else
+                {
+                    Debug.LogFormat("[Simon's Spider #{0}] Input reset via travelling to a visited position other than the starting position.", _moduleId);
+                    ResetSilk();
+                    _checkingLoop = false;
+                    _flashSequence = StartCoroutine(FlashSequence());
+                    _userInputQueue.Clear();
+                    _inputtedLoop.Clear();
+                }
+            }
         }
+    }
+
+    private void SetSilk(int oldPos, int newPos)
+    {
+        var ixs = new int[] { oldPos, newPos }.OrderBy(x => x).ToArray();
+        SilkObjs[_silkIxs[ixs[0]][ixs[1]]].SetActive(true);
+    }
+
+    private void ResetSilk()
+    {
+        foreach (var silk in SilkObjs)
+            silk.SetActive(false);
+    }
+
+    private IEnumerator CheckLoop(Loop submission)
+    {
+        bool correct = submission.Equals(_loops[_currentStage]);
+        if (!correct)
+        {
+            yield return RotateSpider(_spiderPos, 9);
+            yield return WalkSpider(_spiderPos, 9);
+            _spiderPos = 9;
+            Debug.LogFormat("[Simon's Spider #{0}] Incorrect loop drawn. Strike.", _moduleId);
+            yield return new WaitForSeconds(0.3f);
+            Module.HandleStrike();
+            StartCoroutine(FlashSpiderColor(0));
+            yield return new WaitForSeconds(1);
+            ResetSilk();
+            yield return new WaitForSeconds(1);
+            _checkingLoop = false;
+            _flashSequence = StartCoroutine(FlashSequence());
+            _userInputQueue.Clear();
+            _inputtedLoop.Clear();
+            yield break;
+        }
+        Debug.LogFormat("[Simon's Spider #{0}] Correct loop drawn.", _moduleId);
+        _currentStage++;
+        if (_currentStage == 3)
+        {
+            yield return RotateSpider(_spiderPos, 9);
+            yield return WalkSpider(_spiderPos, 9);
+            _spiderPos = 9;
+            Debug.LogFormat("[Simon's Spider #{0}] Module solved!", _moduleId);
+            yield return new WaitForSeconds(0.3f);
+            _moduleSolved = true;
+            Module.HandlePass();
+            Audio.PlaySoundAtTransform("solve", transform);
+            StartCoroutine(FlashSpiderColor(3, true));
+        }
+        else
+        {
+            yield return RotateSpider(_spiderPos, 9);
+            yield return WalkSpider(_spiderPos, 9);
+            _spiderPos = 9;
+            Debug.LogFormat("[Simon's Spider #{0}] Advancing to stage {1}.", _moduleId, _currentStage + 1);
+            yield return new WaitForSeconds(0.3f);
+            PlaySpiderHissSound();
+            StartCoroutine(FlashSpiderColor(8));
+            yield return new WaitForSeconds(1);
+            ResetSilk();
+            yield return new WaitForSeconds(1);
+            _checkingLoop = false;
+            _flashSequence = StartCoroutine(FlashSequence());
+            _userInputQueue.Clear();
+            _inputtedLoop.Clear();
+        }
+        yield break;
+    }
+
+    private IEnumerator RotateSpider(int oldPos, int newPos)
+    {
+        float dy = _posOnMod[newPos].z - _posOnMod[oldPos].z;
+        float dx = _posOnMod[newPos].x - _posOnMod[oldPos].x;
+        var angle = Mathf.Atan2(-dy, dx) * (180f / Mathf.PI) + 90;
+        var elapsed = 0f;
+        var duration = 0.3f;
+        if (_currentAngle == angle)
+            goto skipRotate;
+        while (elapsed < duration)
+        {
+            SpiderObj.transform.localRotation = Quaternion.Lerp(Quaternion.Euler(0, _currentAngle, 0), Quaternion.Euler(0, angle, 0), Easing.InOutQuad(elapsed, 0, 1, duration));
+            yield return null;
+            elapsed += Time.deltaTime;
+        }
+        SpiderObj.transform.localEulerAngles = new Vector3(0, angle, 0);
+        yield return new WaitForSeconds(0.3f);
+        skipRotate:
+        _currentAngle = angle;
+    }
+
+    private IEnumerator WalkSpider(int oldPos, int newPos)
+    {
+        var oldV = _posOnMod[oldPos];
+        var newV = _posOnMod[newPos];
+        float elapsed = 0f;
+        float duration = Mathf.Sqrt(Mathf.Pow(_posOnMod[oldPos].x - _posOnMod[newPos].x, 2) + Mathf.Pow(_posOnMod[oldPos].z - _posOnMod[newPos].z, 2)) * 8f;
+        PlaySpiderWalkSound();
+        Spider.RunAnimation(0);
+        while (elapsed < duration)
+        {
+            SpiderObj.transform.localPosition = new Vector3(Mathf.Lerp(oldV.x, newV.x, elapsed / duration), SpiderObj.transform.localPosition.y, Mathf.Lerp(oldV.z, newV.z, elapsed / duration));
+            yield return null;
+            elapsed += Time.deltaTime;
+        }
+        SpiderObj.transform.localPosition = new Vector3(newV.x, SpiderObj.transform.localPosition.y, newV.z);
+        Spider.StopAnimation();
+    }
+
+    private IEnumerator FlashSequence()
+    {
+        var loop = _loops[_currentStage];
+        while (true)
+        {
+            var oldPos = _spiderPos;
+            _ixWithinLoop = (_ixWithinLoop + 1) % loop.GridPos.Length;
+            int coord = loop.GridPos[_ixWithinLoop];
+            int newPos = Rnd.Range(0, 9);
+            int gCol = _colorGrid[coord][newPos];
+            
+            // Debug.LogFormat("<Simon's Spider #{0}> {1} in the grid. {2} pos, {3} color.", _moduleId, GetCoord(coord), _3by3PosNames[newPos], _colorNames[gCol]);
+
+            if (oldPos != newPos)
+            {
+                _spiderInAnimation = true;
+                yield return RotateSpider(oldPos, newPos);
+                yield return WalkSpider(oldPos, newPos);
+                yield return new WaitForSeconds(0.5f);
+                _spiderPos = newPos;
+            }
+
+            PlaySpiderHissSound();
+            StartCoroutine(FlashSpiderColor(gCol));
+            yield return new WaitForSeconds(0.6f);
+            _spiderInAnimation = false;
+            yield return new WaitForSeconds(0.4f);
+        }
+    }
+
+    private IEnumerator FlashSpiderColor(int c, bool stay = false)
+    {
+        foreach (var p in SpiderParts)
+            p.GetComponent<MeshRenderer>().material.color = _colors[c];
+        SpiderLight.enabled = true;
+        SpiderLight.color = _colors[c];
+        if (stay)
+            yield break;
+        yield return new WaitForSeconds(0.6f);
+        foreach (var p in SpiderParts)
+            p.GetComponent<MeshRenderer>().material.color = _colors[9];
+        SpiderLight.enabled = false;
+        SpiderLight.color = _colors[9];
+        yield return new WaitForSeconds(0.4f);
+    }
+    
+    private void PlaySpiderHissSound()
+    {
+        if (_playSounds)
+            Audio.PlaySoundAtTransform("sp" + Rnd.Range(0, 4), SpiderObj.transform);
+    }
+
+    private void PlaySpiderWalkSound()
+    {
+        if (_playSounds)
+            Audio.PlaySoundAtTransform("w" + Rnd.Range(0, 4), SpiderObj.transform);
     }
 
     private Loop GenerateLoop(int size)
@@ -231,15 +394,9 @@ public class SimonsSpiderScript : MonoBehaviour
             if (!GetAdjacents(oldPos[i]).ToArray().Contains(oldPos[(i + 1) % size]))
                 goto tryAgain;
 
-        // Force it into the top-left position.
-        if (oldPos.All(x => x % 3 != 0))
-            oldPos = oldPos.Select(i => i - 1).ToArray();
-        if (oldPos.All(x => x / 3 != 0))
-            oldPos = oldPos.Select(i => i - 3).ToArray();
-
         // Get the positions within a 10x10 grid.
-        int randX = Rnd.Range(0, 9 - (oldPos.All(x => x % 3 != 2) ? 2 : 3));
-        int randY = Rnd.Range(0, 9 - (oldPos.All(x => x / 3 != 2) ? 2 : 3));
+        int randX = Rnd.Range(0, 6);
+        int randY = Rnd.Range(0, 6);
         var newPos = oldPos.Select(i => ConvertGrids(i, 3, 9) + randX + (9 * randY)).ToArray();
 
         return new Loop(oldPos, newPos);
@@ -273,6 +430,10 @@ public class SimonsSpiderScript : MonoBehaviour
             var a = newArr.Skip(1).Concat(newArr.Take(1));
             newArr = a.ToArray();
         }
+        if (newArr.All(i => i % 3 > 0))
+            newArr = newArr.Select(i => i - 1).ToArray();
+        if (newArr.All(i => i / 3 > 0))
+            newArr = newArr.Select(i => i - 3).ToArray();
         return newArr;
     }
 
