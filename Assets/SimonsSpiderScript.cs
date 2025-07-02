@@ -2,12 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
 using UnityEngine;
 using Rnd = UnityEngine.Random;
-using KModkit;
-using System.Text;
-using UnityEngine.SocialPlatforms;
 
 public class SimonsSpiderScript : MonoBehaviour
 {
@@ -77,7 +73,7 @@ public class SimonsSpiderScript : MonoBehaviour
     private int _ixWithinLoop;
     private float _currentAngle;
     private Coroutine _flashSequence;
-    private bool _spiderInAnimation;
+    private bool _isSpiderFlashing;
     private List<int> _userInputQueue = new List<int>();
     private bool _checkingLoop;
     private List<int> _inputtedLoop = new List<int>();
@@ -95,9 +91,7 @@ public class SimonsSpiderScript : MonoBehaviour
 
         public bool Equals(Loop other)
         {
-            var a = ShiftToLowest(WebPos);
-            var o = ShiftToLowest(other.WebPos);
-            return other != null && o.SequenceEqual(a);
+            return other != null && ShiftToLowest(other.WebPos).SequenceEqual(ShiftToLowest(WebPos));
         }
 
         public override bool Equals(object obj)
@@ -107,7 +101,7 @@ public class SimonsSpiderScript : MonoBehaviour
 
         public override int GetHashCode()
         {
-            return WebPos.Aggregate(47, (p, n) => p * 31 + n);
+            return ShiftToLowest(WebPos).Aggregate(47, (p, n) => p * 31 + n);
         }
     }
 
@@ -161,7 +155,7 @@ public class SimonsSpiderScript : MonoBehaviour
             yield return null;
             if (_checkingLoop)
                 continue;
-            while (_spiderInAnimation)
+            while (_isSpiderFlashing)
                 yield return null;
 
             if (_userInputQueue.Count == 0)
@@ -336,12 +330,12 @@ public class SimonsSpiderScript : MonoBehaviour
             int coord = loop.GridPos[_ixWithinLoop];
             int newPos = Rnd.Range(0, 9);
             int gCol = _colorGrid[coord][newPos];
-            
+
             Debug.LogFormat("<Simon's Spider #{0}> {1} in the grid. {2} pos, {3} color.", _moduleId, GetCoord(coord), _3by3PosNames[newPos], _colorNames[gCol]);
 
             if (oldPos != newPos)
             {
-                _spiderInAnimation = true;
+                _isSpiderFlashing = true;
                 yield return RotateSpider(oldPos, newPos);
                 yield return WalkSpider(oldPos, newPos);
                 yield return new WaitForSeconds(0.5f);
@@ -351,7 +345,7 @@ public class SimonsSpiderScript : MonoBehaviour
             PlaySpiderHissSound();
             StartCoroutine(FlashSpiderColor(gCol));
             yield return new WaitForSeconds(0.6f);
-            _spiderInAnimation = false;
+            _isSpiderFlashing = false;
             yield return new WaitForSeconds(0.4f);
         }
     }
@@ -371,7 +365,7 @@ public class SimonsSpiderScript : MonoBehaviour
         SpiderLight.color = _colors[9];
         yield return new WaitForSeconds(0.4f);
     }
-    
+
     private void PlaySpiderHissSound()
     {
         if (_playSounds)
@@ -440,5 +434,63 @@ public class SimonsSpiderScript : MonoBehaviour
     private int ConvertGrids(int ix, int prevWidth, int newWidth)
     {
         return (ix % prevWidth) + newWidth * (ix / prevWidth);
+    }
+
+#pragma warning disable 0414
+    private static readonly string TwitchHelpMessage = @"!{0} TL BM MC [press these locations] | !{0} 1,8,5 [press these locations, 1–9 in reading order]";
+#pragma warning restore 0414
+
+    private List<KMSelectable> ProcessTwitchCommand(string command)
+    {
+        var pieces = command.Split(new[] { ' ', ',', ';', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var buttons = new List<KMSelectable>();
+        foreach (var piece in pieces)
+        {
+            switch (piece.ToLowerInvariant())
+            {
+                case "TL": case "1": buttons.Add(Sels[0]); break;
+                case "TM": case "TC": case "2": buttons.Add(Sels[1]); break;
+                case "TR": case "3": buttons.Add(Sels[2]); break;
+                case "ML": case "CL": case "4": buttons.Add(Sels[3]); break;
+                case "MC": case "MM": case "CM": case "5": buttons.Add(Sels[4]); break;
+                case "MR": case "CR": case "6": buttons.Add(Sels[5]); break;
+                case "BL": case "7": buttons.Add(Sels[6]); break;
+                case "BM": case "BC": case "8": buttons.Add(Sels[7]); break;
+                case "BR": case "9": buttons.Add(Sels[8]); break;
+                default: return null;
+            }
+        }
+        return buttons;
+    }
+
+    private IEnumerator TwitchHandleForcedSolve()
+    {
+        while (_isSpiderFlashing)
+            yield return true;
+
+        while (!_moduleSolved)
+        {
+            // If the user has already entered something, we need to cancel that
+            if (_userInputQueue.Count > 0)
+            {
+                // Click the spider to cancel the current loop.
+                Sels[_userInputQueue.Last()].OnInteract();
+                yield return new WaitForSeconds(.2f);
+
+                while (_userInputQueue.Count != 0)
+                    yield return true;
+            }
+
+            var curStage = _currentStage;
+            for (var i = 0; i <= _loops[curStage].WebPos.Length; i++)
+            {
+                var ix = _loops[curStage].WebPos[i % _loops[curStage].WebPos.Length];
+                Sels[ix].OnInteract();
+                yield return new WaitForSeconds(.2f);
+            }
+
+            while (_userInputQueue.Count != 0)
+                yield return true;
+        }
     }
 }
