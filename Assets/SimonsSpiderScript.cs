@@ -177,8 +177,6 @@ public class SimonsSpiderScript : MonoBehaviour
 
             int curIx = _inputtedLoop.Last();
 
-            Debug.LogFormat("[Simon's Spider #{0}] Spider moved to {1} position.", _moduleId, _3by3PosNames[curIx]);
-
             yield return RotateSpider(_spiderPos, curIx);
             yield return WalkSpider(_spiderPos, curIx);
 
@@ -315,7 +313,7 @@ public class SimonsSpiderScript : MonoBehaviour
         var oldV = _posOnMod[oldPos];
         var newV = _posOnMod[newPos];
         float elapsed = 0f;
-        float duration = Mathf.Sqrt(Mathf.Pow(_posOnMod[oldPos].x - _posOnMod[newPos].x, 2) + Mathf.Pow(_posOnMod[oldPos].z - _posOnMod[newPos].z, 2)) * 8f;
+        float duration = Mathf.Sqrt(Mathf.Pow(_posOnMod[oldPos].x - _posOnMod[newPos].x, 2) + Mathf.Pow(_posOnMod[oldPos].z - _posOnMod[newPos].z, 2)) * 6f;
         PlaySpiderWalkSound();
         Spider.RunAnimation(0);
         while (elapsed < duration)

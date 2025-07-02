@@ -17,10 +17,20 @@ MonoBehaviour:
   description: "The itsy-bitsy Simon will flash a colored light,\r\nHe needs your
     help to spin a web, but make sure it is right!\r\nIf you submit a faulty web,
     you\u2019re soon to meet your doom,\r\nAs the itsy-bitsy Simon will make the bomb
-    go boom!\n\nModder Secret Santa entry\nPrompt by Obvious (Life)\nSpider model
-    and animation by GhostSalt\nDeveloped by Quinn Wuest\n\n[url=https://ktane.timwi.de/HTML/Simon's
+    go boom!\n\nModder Secret Santa #1 entry\nPrompt by Obvious\nSpider model and
+    animation by GhostSalt\nDeveloped by Quinn Wuest\n\n[url=https://ktane.timwi.de/HTML/Simon's
     Spider.html]Manual HTML[/url]\r\n[url=https://ktane.timwi.de/PDF/Simon's Spider.pdf]Manual
-    PDF[/url]"
+    PDF[/url]\n\nReceived prompt:\n\"When I was thinking about what I'd want I found
+    something that feels like it's a rather uncommon element in a module: Life. My
+    prompt is to make a module with something of a lifeform on it. This can be any
+    number of organisms and species. Be it an animal, plant, fungus, prokaryotic or
+    even fictional it's fine by me. I just think it'd be cool to have some more life
+    on a bomb that's normally just bits of metal and other inorganic things. There
+    are probably plenty of ways to explore this concept, so please try to make something
+    original and maybe not something like a generic table lookup (unless you can make
+    that interesting I suppose). Also preferably don't make a tamagotchi. That kind
+    of feels like a low hanging fruit and I'm curious what can sprout from the available
+    creativity.\""
   version: 1.0
   outputFolder: build
   previewImage: {fileID: 2800000, guid: 4df6eb47d2728e348af172ba389e0acc, type: 3}
